@@ -10,28 +10,40 @@ const PORT = 3000;
 const COMIC_VINE_API_URL = "https://comicvine.gamespot.com/api";
 
 const getApiKey = () => {
-  const key = process.env.COMIC_VINE_API_KEY;
+  let key = process.env.COMIC_VINE_API_KEY;
   if (!key) {
     console.warn("WARNING: COMIC_VINE_API_KEY is not set in environment variables.");
+    return null;
   }
-  return key;
+  // Remove possible quotes and trim whitespace
+  const cleanedKey = key.trim().replace(/^["'](.+)["']$/, '$1');
+  console.log(`API Key found (starts with: ${cleanedKey.substring(0, 4)}... ends with: ${cleanedKey.substring(cleanedKey.length - 4)})`);
+  return cleanedKey;
 };
 
 // Function to get axios instance with dynamic User-Agent
 const getAxios = () => {
   return axios.create({
     headers: {
-      "User-Agent": `SuperheroPedia/1.0.0 (${process.env.APP_URL || "http://localhost:3000"})`,
+      "User-Agent": `SuperheroPedia/1.0.0 (${process.env.APP_URL || "https://superheropedia-one.vercel.app"})`,
     },
+    timeout: 8000, // 8 second timeout
   });
 };
 
 app.use(express.json());
 
+// Proxy Health Check
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", message: "Server is internal healthy", vercel: !!process.env.VERCEL });
+});
+
 // Proxy Search
 app.get("/api/search", async (req, res) => {
+  console.log("Processing search request for:", req.query.query);
   const apiKey = getApiKey();
   if (!apiKey) {
+    console.error("Missing COMIC_VINE_API_KEY");
     return res.status(401).json({ error: "API Key missing. Please set COMIC_VINE_API_KEY." });
   }
 
@@ -50,9 +62,18 @@ app.get("/api/search", async (req, res) => {
       },
     });
 
+    console.log("Comic Vine Search Response Status:", response.status);
     res.json(response.data);
   } catch (error: any) {
-    console.error("Search Proxy Error:", error.message);
+    console.error("Search Proxy Error Details:", {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+      config: {
+        url: error.config?.url,
+        params: { ...error.config?.params, api_key: "***" }
+      }
+    });
     res.status(error.response?.status || 500).json({ 
       error: error.message,
       details: error.response?.data || "No details"
@@ -62,8 +83,10 @@ app.get("/api/search", async (req, res) => {
 
 // Proxy Character Detail
 app.get("/api/character/:id", async (req, res) => {
+  console.log("Processing character detail request for:", req.params.id);
   const apiKey = getApiKey();
   if (!apiKey) {
+    console.error("Missing COMIC_VINE_API_KEY");
     return res.status(401).json({ error: "API Key missing. Please set COMIC_VINE_API_KEY." });
   }
 
@@ -77,9 +100,14 @@ app.get("/api/character/:id", async (req, res) => {
       },
     });
 
+    console.log("Comic Vine Character Detail Status:", response.status);
     res.json(response.data);
   } catch (error: any) {
-    console.error("Character Detail Proxy Error:", error.message);
+    console.error("Character Detail Proxy Error Details:", {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+    });
     res.status(error.response?.status || 500).json({ 
       error: error.message,
       details: error.response?.data || "No details"
@@ -89,8 +117,10 @@ app.get("/api/character/:id", async (req, res) => {
 
 // Proxy Issue Detail (for covers)
 app.get("/api/issue/:id", async (req, res) => {
+  console.log("Processing issue detail request for:", req.params.id);
   const apiKey = getApiKey();
   if (!apiKey) {
+    console.error("Missing COMIC_VINE_API_KEY");
     return res.status(401).json({ error: "API Key missing. Please set COMIC_VINE_API_KEY." });
   }
 
@@ -104,14 +134,29 @@ app.get("/api/issue/:id", async (req, res) => {
       },
     });
 
+    console.log("Comic Vine Issue Detail Status:", response.status);
     res.json(response.data);
   } catch (error: any) {
-    console.error("Issue Proxy Error:", error.message);
+    console.error("Issue Proxy Error Details:", {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+    });
     res.status(error.response?.status || 500).json({ 
       error: error.message,
       details: error.response?.data || "No details"
     });
   }
+});
+
+// Global error handler
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error("Global Catch-all Error:", err);
+  res.status(500).json({ 
+    error: "Internal Server Error", 
+    message: err.message,
+    stack: process.env.NODE_ENV === "production" ? undefined : err.stack 
+  });
 });
 
 async function startServer() {
