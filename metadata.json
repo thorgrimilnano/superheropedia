@@ -1,0 +1,8 @@
+{
+  "name": "SuperheroPedia",
+  "description": "A comprehensive superhero encyclopedia powered by the Comic Vine API.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
