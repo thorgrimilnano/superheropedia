@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import axios from "axios";
-import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -54,7 +53,10 @@ app.get("/api/search", async (req, res) => {
     res.json(response.data);
   } catch (error: any) {
     console.error("Search Proxy Error:", error.message);
-    res.status(error.response?.status || 500).json({ error: error.message });
+    res.status(error.response?.status || 500).json({ 
+      error: error.message,
+      details: error.response?.data || "No details"
+    });
   }
 });
 
@@ -78,7 +80,10 @@ app.get("/api/character/:id", async (req, res) => {
     res.json(response.data);
   } catch (error: any) {
     console.error("Character Detail Proxy Error:", error.message);
-    res.status(error.response?.status || 500).json({ error: error.message });
+    res.status(error.response?.status || 500).json({ 
+      error: error.message,
+      details: error.response?.data || "No details"
+    });
   }
 });
 
@@ -102,18 +107,24 @@ app.get("/api/issue/:id", async (req, res) => {
     res.json(response.data);
   } catch (error: any) {
     console.error("Issue Proxy Error:", error.message);
-    res.status(error.response?.status || 500).json({ error: error.message });
+    res.status(error.response?.status || 500).json({ 
+      error: error.message,
+      details: error.response?.data || "No details"
+    });
   }
 });
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (!process.env.VERCEL) {
+    // Only serve static files via Express if NOT on Vercel
+    // Vercel handles static file serving via its own infrastructure
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
@@ -128,6 +139,8 @@ async function startServer() {
   }
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
 
 export default app;
